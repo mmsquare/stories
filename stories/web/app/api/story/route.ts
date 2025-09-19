@@ -38,17 +38,25 @@ export async function POST(req: NextRequest) {
         { role: "system", content: sys },
         { role: "user", content: JSON.stringify({ subject: prefs.subject, findings: prefs.findings, outline: prefs.outline, audienceAge: prefs.audienceAge, fictionLevel: prefs.fictionLevel, lengthMinutes: prefs.lengthMinutes ?? 5 }) },
       ],
-      temperature: 0.8,
-      max_tokens: 1600,
+      temperature: 0.7,
+      max_tokens: 2400,
     });
 
-    const content = resp.choices?.[0]?.message?.content || "";
+    const raw = resp.choices?.[0]?.message?.content || "";
+    const cleaned = raw.replace(/```json|```/gi, "").trim();
     let parsed: any;
-    try {
-      parsed = JSON.parse(content);
-    } catch {
+    const tryParse = (s: string) => { try { return JSON.parse(s); } catch { return undefined; } };
+    parsed = tryParse(cleaned);
+    if (!parsed) {
+      const start = cleaned.indexOf("{");
+      const end = cleaned.lastIndexOf("}");
+      if (start >= 0 && end > start) {
+        parsed = tryParse(cleaned.slice(start, end + 1));
+      }
+    }
+    if (!parsed) {
       // Fallback: wrap raw text into JSON, split paragraphs
-      const text: string = content || "";
+      const text: string = cleaned || "";
       const segments = text
         .split(/\n{2,}/)
         .map((s) => s.trim())
@@ -57,16 +65,18 @@ export async function POST(req: NextRequest) {
     }
     // Normalize segments to string[] in case the model returns objects like { text: "..." }
     const normSegments: string[] = Array.isArray(parsed.segments)
-      ? parsed.segments.map((seg: unknown) => {
-          if (typeof seg === "string") return seg;
-          if (seg && typeof seg === "object") {
-            const o = seg as Record<string, unknown>;
-            const candidate = o.paragraph || o.text || o.content || o.value;
-            if (typeof candidate === "string") return candidate;
-            try { return JSON.stringify(seg); } catch { return ""; }
-          }
-          return String(seg ?? "");
-        }).filter((s: string) => s.length > 0)
+      ? parsed.segments
+          .map((seg: unknown) => {
+            if (typeof seg === "string") return seg;
+            if (seg && typeof seg === "object") {
+              const o = seg as Record<string, unknown>;
+              const candidate = (o as any).paragraph || (o as any).text || (o as any).content || (o as any).value;
+              if (typeof candidate === "string") return candidate;
+              return ""; // skip non-string objects
+            }
+            return ""; // skip non-strings
+          })
+          .filter((s: string) => s.length > 0)
       : [];
 
     return NextResponse.json({
