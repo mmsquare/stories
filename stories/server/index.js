@@ -14,6 +14,13 @@ app.post('/api/tts', async (req, res) => {
     const apiKey = process.env.ELEVENLABS_API_KEY;
     const voiceId = language === 'zh' ? process.env.ELEVENLABS_VOICE_ZH : process.env.ELEVENLABS_VOICE_EN;
     if (!apiKey || !voiceId) return res.status(500).json({ error: 'Missing ELEVENLABS config' });
+    const requestId = Math.random().toString(36).slice(2, 8).toUpperCase();
+    const startedAt = Date.now();
+    const selectedModel = process.env.ELEVENLABS_MODEL_ID || '(provider default)';
+
+    console.log(`[TTS][engaged] id=${requestId} language=${language || 'en'} textChars=${text.length}`);
+    console.log(`[TTS][model-selected] id=${requestId} model=${selectedModel}`);
+    console.log(`[TTS][voice-selected] id=${requestId} voiceId=${voiceId}`);
 
     const payload = { text, output_format: 'mp3_44100_128' };
     if (process.env.ELEVENLABS_MODEL_ID) payload.model_id = process.env.ELEVENLABS_MODEL_ID;
@@ -33,10 +40,13 @@ app.post('/api/tts', async (req, res) => {
     if (!resp.ok) return res.status(502).send(await resp.text());
 
     const buffer = Buffer.from(await resp.arrayBuffer());
+    console.log(`[TTS][complete] id=${requestId} durationMs=${Date.now() - startedAt} bytes=${buffer.length}`);
     res.set('Content-Type', 'audio/mpeg');
     res.set('Cache-Control', 'public, max-age=31536000, immutable');
     return res.send(buffer);
   } catch (e) {
+    const isAbort = e && (e.name === 'AbortError' || /aborted/i.test(e.message || ''));
+    console.error(`[TTS][error] ${isAbort ? 'aborted' : 'failed'} message=${e?.message || 'unknown'}`);
     return res.status(500).json({ error: e?.message || 'Server error' });
   }
 });
