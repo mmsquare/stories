@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useAnimationControls } from "framer-motion";
+import { motion, useAnimationControls, easeInOut } from "framer-motion";
 import { useEffect, useMemo } from "react";
 
 type BreathingBubbleProps = {
@@ -18,11 +18,11 @@ export default function BreathingBubble({ state, size = 240, className, overlayT
     () => ({
       idle: {
         scale: [1, 1.04, 1],
-        transition: { duration: 3.2, repeat: Infinity, ease: "easeInOut" },
+        transition: { duration: 3.2, repeat: Infinity, ease: easeInOut },
       },
       active: {
         scale: [1, 1.12, 1],
-        transition: { duration: 1.6, repeat: Infinity, ease: "easeInOut" },
+        transition: { duration: 1.6, repeat: Infinity, ease: easeInOut },
       },
       listening: {
         scale: [1, 1.18, 0.98, 1.18, 1],
@@ -33,7 +33,7 @@ export default function BreathingBubble({ state, size = 240, className, overlayT
           "inset 0 0 40px rgba(255,255,255,0.8), 0 0 0 14px rgba(59,130,246,0.2)",
           "inset 0 0 40px rgba(255,255,255,0.8), 0 0 0 0 rgba(59,130,246,0.35)",
         ],
-        transition: { duration: 1.2, repeat: Infinity, ease: "easeInOut" },
+        transition: { duration: 1.2, repeat: Infinity, ease: easeInOut },
       },
     }),
     []
