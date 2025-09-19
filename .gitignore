@@ -2,3 +2,6 @@
 # Ignore legacy folders
 watermelon-rater/
 watermelon-rater.bfg-report/
+
+# Local Netlify folder
+.netlify

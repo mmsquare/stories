@@ -28,6 +28,7 @@ export default function Home() {
   }, []);
   const router = useRouter();
   const { setCurrent, updateCurrent, saved } = useStories();
+  const ttsDisabled = process.env.NEXT_PUBLIC_TTS_DISABLED === "true";
 
   const handleSubmit = useCallback(async (prefs: ParsedPreferences) => {
     setCurrentLanguage(prefs.language);
@@ -95,30 +96,25 @@ export default function Home() {
       }
       updateCurrent({ text, segments });
 
-      // TTS (optional)
+      // TTS via Netlify background function with polling
       try {
-        console.log("Event: Evenlabs voice model engaged to generate voice-over");
         setStage("tts");
         setProgressTarget((t) => Math.max(t, 0.9));
-        // show TTS specific progress copy
-        
-        const resTts = await fetch("/api/tts", {
+        const ttsBase = process.env.NEXT_PUBLIC_TTS_BASE || ""; // e.g. https://stories-tts.onrender.com
+        const start = await fetch(`${ttsBase}/api/tts`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text, language: currentLanguage }),
         });
-        if (resTts.ok) {
-          const blob = await resTts.blob();
-          const url = URL.createObjectURL(blob);
-          updateCurrent({ audioUrl: url });
-          // after audio ready, smoothly fill to 100%
-          setProgressTarget(1.0);
-        } else {
-          const errText = await resTts.text();
-          toast.error(currentLanguage === "zh" ? "配音超时或失败" : "TTS timed out or failed");
-          console.error("[TTS]", errText);
-        }
-      } catch {}
+        if (!start.ok) throw new Error(await start.text());
+        const blob = await start.blob();
+        const url = URL.createObjectURL(blob);
+        updateCurrent({ audioUrl: url });
+        setProgressTarget(1.0);
+      } catch (e) {
+        console.error("[TTS-bg]", e);
+        toast.error(currentLanguage === "zh" ? "配音失败" : "TTS failed");
+      }
 
       setBubbleState("idle");
       setIsBusy(false);
