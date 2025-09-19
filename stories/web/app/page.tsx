@@ -90,6 +90,9 @@ export default function Home() {
       console.log("[Story] System Prompt:\n", storyJson.debug_prompt?.system);
       console.log("[Story] User Payload:\n", storyJson.debug_prompt?.user);
       const { text, segments } = storyJson;
+      if (!Array.isArray(segments)) {
+        console.warn("[Story] Unexpected segments shape; coercing to array");
+      }
       updateCurrent({ text, segments });
 
       // TTS (optional)
@@ -110,6 +113,10 @@ export default function Home() {
           updateCurrent({ audioUrl: url });
           // after audio ready, smoothly fill to 100%
           setProgressTarget(1.0);
+        } else {
+          const errText = await resTts.text();
+          toast.error(currentLanguage === "zh" ? "配音超时或失败" : "TTS timed out or failed");
+          console.error("[TTS]", errText);
         }
       } catch {}
 

@@ -22,6 +22,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing ELEVENLABS_VOICE_EN/ZH" }, { status: 500 });
     }
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 55000);
     const resp = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
       method: "POST",
       headers: {
@@ -38,11 +40,13 @@ export async function POST(req: NextRequest) {
         }
         return payload;
       })()),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
     if (!resp.ok) {
       const err = await resp.text();
-      return NextResponse.json({ error: err }, { status: 500 });
+      return NextResponse.json({ error: err.slice(0, 2000) }, { status: 504 });
     }
 
     const buffer = Buffer.from(await resp.arrayBuffer());

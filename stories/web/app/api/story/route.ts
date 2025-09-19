@@ -55,7 +55,28 @@ export async function POST(req: NextRequest) {
         .filter(Boolean);
       parsed = { text: text || (prefs.language === "zh" ? "生成失败" : "Generation failed"), segments: segments.length ? segments : [text] };
     }
-    return NextResponse.json({ ...parsed, debug_prompt: { system: sys, user: JSON.stringify({ subject: prefs.subject, findings: prefs.findings, outline: prefs.outline, audienceAge: prefs.audienceAge, fictionLevel: prefs.fictionLevel, lengthMinutes: prefs.lengthMinutes ?? 5 }) } });
+    // Normalize segments to string[] in case the model returns objects like { text: "..." }
+    const normSegments: string[] = Array.isArray(parsed.segments)
+      ? parsed.segments.map((seg: unknown) => {
+          if (typeof seg === "string") return seg;
+          if (seg && typeof seg === "object") {
+            const o = seg as Record<string, unknown>;
+            const candidate = o.paragraph || o.text || o.content || o.value;
+            if (typeof candidate === "string") return candidate;
+            try { return JSON.stringify(seg); } catch { return ""; }
+          }
+          return String(seg ?? "");
+        }).filter((s: string) => s.length > 0)
+      : [];
+
+    return NextResponse.json({
+      text: typeof parsed.text === "string" ? parsed.text : (prefs.language === "zh" ? "生成失败" : "Generation failed"),
+      segments: normSegments.length ? normSegments : (typeof parsed.text === "string" ? [parsed.text] : []),
+      debug_prompt: {
+        system: sys,
+        user: JSON.stringify({ subject: prefs.subject, findings: prefs.findings, outline: prefs.outline, audienceAge: prefs.audienceAge, fictionLevel: prefs.fictionLevel, lengthMinutes: prefs.lengthMinutes ?? 5 }),
+      },
+    });
   } catch (e: any) {
     // Final fallback: placeholder minimal story to avoid client hard error
     const fallbackText = "This is a placeholder story. Please try again.";
