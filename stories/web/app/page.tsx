@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import BreathingBubble from "@/components/BreathingBubble";
 import PromptInput, { ParsedPreferences } from "@/components/PromptInput";
 import ConfirmModal from "@/components/ConfirmModal";
+import type { Findings } from "@/types/story";
 import { useStories, createStoryId } from "@/store/useStories";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -13,6 +14,8 @@ export default function Home() {
   const [bubbleState, setBubbleState] = useState<"idle" | "active" | "listening">("idle");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState("");
+  const [confirmFindings, setConfirmFindings] = useState<Findings | undefined>(undefined);
+  const [confirmDefaultCategory, setConfirmDefaultCategory] = useState<string | undefined>(undefined);
   const [currentLanguage, setCurrentLanguage] = useState<"en" | "zh">("en");
   const [isBusy, setIsBusy] = useState(false);
   type Stage = "idle" | "search" | "plan" | "tts";
@@ -56,8 +59,10 @@ export default function Home() {
       const data = await res.json();
       console.log("[Confirm] System Prompt:\n", data.debug_prompt?.system);
       console.log("[Confirm] User Payload:\n", data.debug_prompt?.user);
-      // Store findings and outline for next step
-      updateCurrent({ findings: data.findings, outline: data.outline });
+      // Store categorized findings
+      updateCurrent({ findings: data.findings });
+      setConfirmFindings(data.findings);
+      setConfirmDefaultCategory(data.findings?.categories?.[0]?.category);
       setConfirmMessage(data.confirmation_message ?? "");
       setConfirmOpen(true);
     } catch (e) {
@@ -69,7 +74,7 @@ export default function Home() {
     }
   }, []);
 
-  const onConfirm = useCallback(async () => {
+  const onConfirm = useCallback(async (selection?: { category: string; age: number; lengthMinutes: number }) => {
     setConfirmOpen(false);
     console.log("Event: OpenAI model engaged to generate the actual story");
     try {
@@ -81,10 +86,13 @@ export default function Home() {
 
       // Story
       const cur3 = useStories.getState().current!;
+      const chosenCategory = selection?.category || confirmDefaultCategory || confirmFindings?.categories?.[0]?.category || "";
+      const age = selection?.age ?? 8;
+      const lengthMinutes = selection?.lengthMinutes ?? 3;
       const resStory = await fetch("/api/story", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject: cur3.subject, language: currentLanguage, audienceAge: cur3.audienceAge, fictionLevel: cur3.fictionLevel, lengthMinutes: cur3.lengthMinutes, findings: cur3.findings ?? [], outline: cur3.outline ?? [] }),
+        body: JSON.stringify({ subject: cur3.subject, language: currentLanguage, category: chosenCategory, age, lengthMinutes, findings: cur3.findings ?? { subject: cur3.subject, categories: [] } }),
       });
       if (!resStory.ok) throw new Error("story");
       const storyJson = await resStory.json();
@@ -275,6 +283,8 @@ export default function Home() {
       <ConfirmModal
         open={confirmOpen}
         message={confirmMessage}
+        categories={confirmFindings?.categories}
+        defaultCategory={confirmDefaultCategory}
         onConfirm={onConfirm}
         onCancel={onCancel}
         language={currentLanguage}

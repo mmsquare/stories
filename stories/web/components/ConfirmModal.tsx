@@ -1,16 +1,25 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 type ConfirmModalProps = {
   open: boolean;
   message: string;
-  onConfirm: () => void;
+  categories?: { category: string; highlights: string[] }[];
+  defaultCategory?: string;
+  onConfirm: (selection?: { category: string; age: number; lengthMinutes: number }) => void;
   onCancel: () => void;
   language: "en" | "zh";
 };
 
-export default function ConfirmModal({ open, message, onConfirm, onCancel, language }: ConfirmModalProps) {
+export default function ConfirmModal({ open, message, categories = [], defaultCategory, onConfirm, onCancel, language }: ConfirmModalProps) {
+  const [selectedCategory, setSelectedCategory] = useState<string>(defaultCategory || categories[0]?.category || "");
+  const [age, setAge] = useState<number>(8);
+  const [lengthMinutes, setLengthMinutes] = useState<number>(3);
+  
+  useEffect(() => {
+    setSelectedCategory(defaultCategory || categories[0]?.category || "");
+  }, [defaultCategory, categories]);
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
@@ -29,8 +38,48 @@ export default function ConfirmModal({ open, message, onConfirm, onCancel, langu
         <div className="text-lg font-semibold mb-2">
           {language === "zh" ? "请确认" : "Please confirm"}
         </div>
-        <div className="text-sm leading-relaxed mb-6 whitespace-pre-wrap">
+        <div className="text-sm leading-relaxed whitespace-pre-wrap">
           {message}
+        </div>
+        {categories.length > 0 && (
+          <div className="mt-4">
+            <div className="text-xs font-medium mb-2">{language === "zh" ? "选择故事类别" : "Select a category"}</div>
+            <div className="flex flex-wrap gap-2">
+              {categories.map((c) => (
+                <button
+                  key={c.category}
+                  onClick={() => setSelectedCategory(c.category)}
+                  className={`px-3 py-1.5 rounded-xl text-sm border ${selectedCategory === c.category ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-black border-black/15"}`}
+                >
+                  {c.category}
+                </button>
+              ))}
+            </div>
+            {!!selectedCategory && (
+              <div className="mt-3 text-xs text-black/70">
+                {(categories.find((x) => x.category === selectedCategory)?.highlights || []).slice(0, 3).map((h, i) => (
+                  <div key={i}>• {h}</div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="mt-5 grid gap-4">
+          <div>
+            <div className="flex items-center justify-between text-xs mb-1">
+              <span>{language === "zh" ? "年龄" : "Age"}</span>
+              <span>{age}+ {language === "zh" ? "岁" : "years"}</span>
+            </div>
+            <input type="range" min={4} max={21} value={age} onChange={(e) => setAge(parseInt(e.target.value, 10))} className="w-full" />
+          </div>
+          <div>
+            <div className="flex items-center justify-between text-xs mb-1">
+              <span>{language === "zh" ? "时长" : "Length"}</span>
+              <span>{lengthMinutes} {language === "zh" ? "分钟" : "min"}</span>
+            </div>
+            <input type="range" min={2} max={10} value={lengthMinutes} onChange={(e) => setLengthMinutes(parseInt(e.target.value, 10))} className="w-full" />
+          </div>
         </div>
         <div className="flex justify-end gap-2">
           <button
@@ -40,7 +89,7 @@ export default function ConfirmModal({ open, message, onConfirm, onCancel, langu
             {language === "zh" ? "取消" : "Cancel"}
           </button>
           <button
-            onClick={onConfirm}
+            onClick={() => onConfirm({ category: selectedCategory || categories[0]?.category || "", age, lengthMinutes })}
             className="px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 shadow"
           >
             {language === "zh" ? "确认" : "Confirm"}

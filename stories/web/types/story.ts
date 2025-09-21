@@ -1,5 +1,8 @@
 export type LanguageCode = "en" | "zh";
 
+export type CategoryFinding = { category: string; highlights: string[] };
+export type Findings = { subject: string; categories: CategoryFinding[] };
+
 export type Story = {
   id: string;
   subject: string;
@@ -8,8 +11,8 @@ export type Story = {
   fictionLevel?: string;
   lengthMinutes?: number;
   structure?: string; // legacy
-  outline?: string[]; // consolidated flow
-  findings?: string[]; // consolidated flow
+  outline?: string[]; // legacy
+  findings?: Findings; // categorized findings from confirm step
   text?: string;
   segments?: string[];
   audioUrl?: string; // May be a blob: URL, regenerate on load if missing

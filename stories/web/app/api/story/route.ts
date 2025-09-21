@@ -7,11 +7,10 @@ export const runtime = "nodejs";
 const schema = z.object({
   subject: z.string().min(1),
   language: z.enum(["en", "zh"]).default("en"),
-  audienceAge: z.string().optional(),
-  fictionLevel: z.string().optional(),
+  category: z.string().optional(),
+  age: z.number().optional(),
   lengthMinutes: z.number().optional(),
-  findings: z.array(z.string()).default([]),
-  outline: z.array(z.string()).default([]),
+  findings: z.object({ subject: z.string(), categories: z.array(z.object({ category: z.string(), highlights: z.array(z.string()).default([]) })).default([]) }).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -29,14 +28,14 @@ export async function POST(req: NextRequest) {
 
     const sys =
       prefs.language === "zh"
-        ? "根据提供的要点（findings）和大纲（outline），写出完整故事（约5分钟阅读时间）。请分成自然段。最终只输出JSON对象：{\"text\": 故事全文, \"segments\": 段落数组 }，不要输出其它内容。灵活结合地理，历史，人文，传说故事。语气温暖、适合儿童，兼顾知识性。"
-        : "Using the provided findings and outline, write the full story (~5 minutes reading time). Split into natural paragraphs. Only output a JSON object: {\"text\": full story, \"segments\": array of paragraph strings } and nothing else. Flexibly combine geography, history, culture, and legend. Warm, kid-friendly tone; educational yet fun.";
+        ? "你是一位优秀的故事讲述者。基于用户选择的[category]，从之前提供的 findings 中挑选匹配的线索，并在需要时进行不超过30秒的网络检索，写出适合约[age]岁听众、时长约[lengthMinutes]分钟的完整中文故事。分成自然段。只输出JSON对象：{\"text\": 故事全文, \"segments\": 段落数组 }，不要输出其他内容。语气温暖、适合儿童，兼顾知识性。"
+        : "You are a great storyteller. Based on the chosen [category], pick the correct item from prior 'findings' and, if needed, do ~30s web lookups to craft a complete story suitable for an [age]-year-old audience, about [lengthMinutes] minutes long. Split into natural paragraphs. Output only JSON: {\"text\": full story, \"segments\": array of paragraph strings }. Warm, kid-friendly, informative.";
 
     const resp = await openai.chat.completions.create({
       model: defaultModel,
       messages: [
         { role: "system", content: sys },
-        { role: "user", content: JSON.stringify({ subject: prefs.subject, findings: prefs.findings, outline: prefs.outline, audienceAge: prefs.audienceAge, fictionLevel: prefs.fictionLevel, lengthMinutes: prefs.lengthMinutes ?? 5 }) },
+        { role: "user", content: JSON.stringify({ subject: prefs.subject, category: prefs.category, age: prefs.age ?? 8, lengthMinutes: prefs.lengthMinutes ?? 3, findings: prefs.findings ?? { subject: prefs.subject, categories: [] } }) },
       ],
       temperature: 0.7,
       max_tokens: 2400,
@@ -84,7 +83,7 @@ export async function POST(req: NextRequest) {
       segments: normSegments.length ? normSegments : (typeof parsed.text === "string" ? [parsed.text] : []),
       debug_prompt: {
         system: sys,
-        user: JSON.stringify({ subject: prefs.subject, findings: prefs.findings, outline: prefs.outline, audienceAge: prefs.audienceAge, fictionLevel: prefs.fictionLevel, lengthMinutes: prefs.lengthMinutes ?? 5 }),
+        user: JSON.stringify({ subject: prefs.subject, category: prefs.category, age: prefs.age ?? 8, lengthMinutes: prefs.lengthMinutes ?? 3, findings: prefs.findings ?? { subject: prefs.subject, categories: [] } }),
       },
     });
   } catch (e: any) {
