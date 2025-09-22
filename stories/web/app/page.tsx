@@ -74,7 +74,7 @@ export default function Home() {
     }
   }, []);
 
-  const onConfirm = useCallback(async (selection?: { category: string; age: number; lengthMinutes: number }) => {
+  const onConfirm = useCallback(async (selection?: { category: string; age: number; lengthMinutes: number; chosenItem?: { title: string; yearOrEra?: string; place?: string; personOrProtagonist?: string } }) => {
     setConfirmOpen(false);
     console.log("Event: OpenAI model engaged to generate the actual story");
     try {
@@ -89,13 +89,40 @@ export default function Home() {
       const chosenCategory = selection?.category || confirmDefaultCategory || confirmFindings?.categories?.[0]?.category || "";
       const age = selection?.age ?? 8;
       const lengthMinutes = selection?.lengthMinutes ?? 3;
+      // Persist selection so Story page can show tags
+      const newSubject = selection?.chosenItem?.title || cur3.subject;
+      updateCurrent({ subject: newSubject, category: chosenCategory, age, lengthMinutes, chosenItem: selection?.chosenItem });
       const resStory = await fetch("/api/story", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject: cur3.subject, language: currentLanguage, category: chosenCategory, age, lengthMinutes, findings: cur3.findings ?? { subject: cur3.subject, categories: [] } }),
+        body: JSON.stringify({ subject: newSubject, language: currentLanguage, category: chosenCategory, age, lengthMinutes, chosenItem: selection?.chosenItem, findings: cur3.findings ?? { subject: cur3.subject, categories: [] } }),
       });
       if (!resStory.ok) throw new Error("story");
       const storyJson = await resStory.json();
+      if (storyJson?.error === "not_verified") {
+        // Offer make-up story
+        const yes = confirm(currentLanguage === "zh" ? "未能核实真实故事。要听一则改编/虚构的故事吗？" : "Couldn't verify a real story. Would you like a make-up story instead?");
+        if (yes) {
+          const resMake = await fetch("/api/story", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ subject: newSubject, language: currentLanguage, category: chosenCategory, age, lengthMinutes, chosenItem: selection?.chosenItem, findings: cur3.findings ?? { subject: cur3.subject, categories: [] }, mode: "makeup" }),
+          });
+          if (!resMake.ok) throw new Error("story");
+          const makeJson = await resMake.json();
+          updateCurrent({ text: makeJson.text, segments: makeJson.segments });
+        } else {
+          // reopen confirmation to pick another item
+          setConfirmOpen(true);
+          return;
+        }
+      } else {
+        const { text, segments } = storyJson;
+        if (!Array.isArray(segments)) {
+          console.warn("[Story] Unexpected segments shape; coercing to array");
+        }
+        updateCurrent({ text, segments });
+      }
       console.log("[Story] System Prompt:\n", storyJson.debug_prompt?.system);
       console.log("[Story] User Payload:\n", storyJson.debug_prompt?.user);
       const { text, segments } = storyJson;
@@ -104,11 +131,24 @@ export default function Home() {
       }
       updateCurrent({ text, segments });
 
-      // TTS via Netlify background function with polling
+      // TTS via external server
       try {
         setStage("tts");
         setProgressTarget((t) => Math.max(t, 0.9));
         const ttsBase = process.env.NEXT_PUBLIC_TTS_BASE || ""; // e.g. https://stories-tts.onrender.com
+        if (!ttsBase) {
+          console.error("[TTS] NEXT_PUBLIC_TTS_BASE is not set. Skipping TTS.");
+          toast.error(currentLanguage === "zh" ? "未配置配音服务器" : "TTS server not configured");
+          setProgressTarget(1.0);
+          // proceed to story page without audio
+          setBubbleState("idle");
+          setIsBusy(false);
+          setStage("idle");
+          setProgress(0);
+          setProgressTarget(0);
+          router.push("/story");
+          return;
+        }
         const start = await fetch(`${ttsBase}/api/tts`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

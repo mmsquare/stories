@@ -33,7 +33,20 @@ export default function StoryPage() {
         ← {current?.language === "zh" ? "返回" : "Back"}
       </button>
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold mb-4">{current?.subject || "Story"}</h1>
+        <div className="mb-4">
+          <h1 className="text-2xl font-semibold">{current?.subject || "Story"}</h1>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {!!current?.subject && (
+              <span className="text-[11px] px-2 py-1 rounded-md bg-black/5 dark:bg-white/10 text-black/70 dark:text-white/70 border border-black/10 dark:border-white/10">{current.subject}</span>
+            )}
+            {!!current?.category && (
+              <span className="text-[11px] px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">{current.category}</span>
+            )}
+            {typeof current?.age === 'number' && (
+              <span className="text-[11px] px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">{current.age}+ {current.language === 'zh' ? '岁' : 'yrs'}</span>
+            )}
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           {current && saved.some((s) => s.id === current.id) ? (
             <span className="text-xs px-3 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">

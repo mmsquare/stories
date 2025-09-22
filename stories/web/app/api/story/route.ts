@@ -10,7 +10,39 @@ const schema = z.object({
   category: z.string().optional(),
   age: z.number().optional(),
   lengthMinutes: z.number().optional(),
-  findings: z.object({ subject: z.string(), categories: z.array(z.object({ category: z.string(), highlights: z.array(z.string()).default([]) })).default([]) }).optional(),
+  chosenItem: z
+    .object({
+      title: z.string(),
+      yearOrEra: z.string().optional(),
+      place: z.string().optional(),
+      personOrProtagonist: z.string().optional(),
+    })
+    .optional(),
+  findings: z
+    .object({
+      subject: z.string(),
+      categories: z
+        .array(
+          z.object({
+            category: z.string(),
+            items: z
+              .array(
+                z.object({
+                  title: z.string(),
+                  yearOrEra: z.string().optional(),
+                  place: z.string().optional(),
+                  personOrProtagonist: z.string().optional(),
+                  oneLineWhyRelevant: z.string().optional(),
+                })
+              )
+              .optional(),
+            highlights: z.array(z.string()).optional(),
+          })
+        )
+        .default([]),
+    })
+    .optional(),
+  mode: z.enum(["real", "makeup"]).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -26,18 +58,29 @@ export async function POST(req: NextRequest) {
     }
     const openai = getOpenAI();
 
+    // Prepare variables for prompts
+    const selectedTitle = prefs.chosenItem?.title || prefs.subject;
+    const audienceAge = prefs.age ?? 8;
+    const minutes = prefs.lengthMinutes ?? 5;
+
     const sys =
       prefs.language === "zh"
-        ? "你是一位优秀的故事讲述者。基于用户选择的[category]，从之前提供的 findings 中挑选匹配的线索，并在需要时进行不超过30秒的网络检索，写出适合约[age]岁听众、时长约[lengthMinutes]分钟的完整中文故事。分成自然段。只输出JSON对象：{\"text\": 故事全文, \"segments\": 段落数组 }，不要输出其他内容。语气温暖、适合儿童，兼顾知识性。"
-        : "You are a great storyteller. Based on the chosen [category], pick the correct item from prior 'findings' and, if needed, do ~30s web lookups to craft a complete story suitable for an [age]-year-old audience, about [lengthMinutes] minutes long. Split into natural paragraphs. Output only JSON: {\"text\": full story, \"segments\": array of paragraph strings }. Warm, kid-friendly, informative.";
+        ? `你是一位优秀的故事讲述者。请为${audienceAge}岁儿童写一个连贯、易读、适合之后做 AI 语音朗读的故事；阅读时长约为${minutes}分钟。使用清晰的自然段落划分，每段 1-3 句，语言简洁、流畅。不要包含链接、列表或多余说明。严格只输出 JSON：{"text": 故事全文, "segments": 自然段字符串数组}。`
+        : `You are a great storyteller. Write a coherent story tailored for a ${audienceAge}-year-old child, with an approximate reading duration of ${minutes} minutes, ideal for AI text-to-speech. Use clear paragraphs (1–3 sentences each), concise and fluent language. Do not include links, lists, or extra commentary. Output strictly JSON only: {"text": full story, "segments": array of paragraph strings}.`;
+
+    // Build the user prompt as requested once a story is selected
+    const userPrompt =
+      prefs.language === "zh"
+        ? `那你给我讲一个「${selectedTitle}」的故事。要求面对${audienceAge}岁小孩，故事阅读时常在${minutes}分钟左右。把这个故事连贯地写下来，一方面方便阅读的段落，第二方便之后发给 AI 语音阅读出来。`
+        : `Please tell the story of "${selectedTitle}". Target audience: ${audienceAge}-year-old children. Reading time about ${minutes} minutes. Write it coherently with clear paragraphs for reading and suitable for AI TTS later.`;
 
     const resp = await openai.chat.completions.create({
       model: defaultModel,
       messages: [
         { role: "system", content: sys },
-        { role: "user", content: JSON.stringify({ subject: prefs.subject, category: prefs.category, age: prefs.age ?? 8, lengthMinutes: prefs.lengthMinutes ?? 3, findings: prefs.findings ?? { subject: prefs.subject, categories: [] } }) },
+        { role: "user", content: userPrompt },
       ],
-      temperature: 0.7,
+      temperature: 0.45,
       max_tokens: 2400,
     });
 
@@ -62,6 +105,7 @@ export async function POST(req: NextRequest) {
         .filter(Boolean);
       parsed = { text: text || (prefs.language === "zh" ? "生成失败" : "Generation failed"), segments: segments.length ? segments : [text] };
     }
+    // Legacy safeguard: ignore previous verification branch
     // Normalize segments to string[] in case the model returns objects like { text: "..." }
     const normSegments: string[] = Array.isArray(parsed.segments)
       ? parsed.segments
@@ -83,7 +127,7 @@ export async function POST(req: NextRequest) {
       segments: normSegments.length ? normSegments : (typeof parsed.text === "string" ? [parsed.text] : []),
       debug_prompt: {
         system: sys,
-        user: JSON.stringify({ subject: prefs.subject, category: prefs.category, age: prefs.age ?? 8, lengthMinutes: prefs.lengthMinutes ?? 3, findings: prefs.findings ?? { subject: prefs.subject, categories: [] } }),
+        user: userPrompt,
       },
     });
   } catch (e: any) {

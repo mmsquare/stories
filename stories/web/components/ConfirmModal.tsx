@@ -5,9 +5,9 @@ import { useEffect, useState } from "react";
 type ConfirmModalProps = {
   open: boolean;
   message: string;
-  categories?: { category: string; highlights: string[] }[];
+  categories?: { category: string; items?: { title: string; yearOrEra?: string; place?: string; personOrProtagonist?: string; oneLineWhyRelevant?: string }[]; highlights?: string[] }[];
   defaultCategory?: string;
-  onConfirm: (selection?: { category: string; age: number; lengthMinutes: number }) => void;
+  onConfirm: (selection?: { category: string; age: number; lengthMinutes: number; chosenItem?: { title: string; yearOrEra?: string; place?: string; personOrProtagonist?: string } }) => void;
   onCancel: () => void;
   language: "en" | "zh";
 };
@@ -16,6 +16,8 @@ export default function ConfirmModal({ open, message, categories = [], defaultCa
   const [selectedCategory, setSelectedCategory] = useState<string>(defaultCategory || categories[0]?.category || "");
   const [age, setAge] = useState<number>(8);
   const [lengthMinutes, setLengthMinutes] = useState<number>(3);
+  const selectedItems = (categories.find((x) => x.category === selectedCategory)?.items) || [];
+  const [selectedItemIdx, setSelectedItemIdx] = useState<number>(0);
   
   useEffect(() => {
     setSelectedCategory(defaultCategory || categories[0]?.category || "");
@@ -55,7 +57,21 @@ export default function ConfirmModal({ open, message, categories = [], defaultCa
                 </button>
               ))}
             </div>
-            {!!selectedCategory && (
+            {!!selectedCategory && selectedItems.length > 0 && (
+              <div className="mt-3 text-xs text-black/80 grid gap-1">
+                {selectedItems.map((it, i) => (
+                  <label key={i} className={`flex items-start gap-2 p-2 rounded-lg border ${selectedItemIdx === i ? 'border-indigo-400 bg-indigo-50' : 'border-black/10'}`}>
+                    <input type="radio" name="story-item" checked={selectedItemIdx === i} onChange={() => setSelectedItemIdx(i)} />
+                    <div>
+                      <div className="font-medium">{it.title}</div>
+                      <div className="opacity-70">{[it.personOrProtagonist, it.place, it.yearOrEra].filter(Boolean).join(" • ")}</div>
+                      {!!it.oneLineWhyRelevant && (<div className="opacity-70">{it.oneLineWhyRelevant}</div>)}
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+            {!!selectedCategory && selectedItems.length === 0 && (
               <div className="mt-3 text-xs text-black/70">
                 {(categories.find((x) => x.category === selectedCategory)?.highlights || []).slice(0, 3).map((h, i) => (
                   <div key={i}>• {h}</div>
@@ -89,7 +105,7 @@ export default function ConfirmModal({ open, message, categories = [], defaultCa
             {language === "zh" ? "取消" : "Cancel"}
           </button>
           <button
-            onClick={() => onConfirm({ category: selectedCategory || categories[0]?.category || "", age, lengthMinutes })}
+            onClick={() => onConfirm({ category: selectedCategory || categories[0]?.category || "", age, lengthMinutes, chosenItem: selectedItems[selectedItemIdx] })}
             className="px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 shadow"
           >
             {language === "zh" ? "确认" : "Confirm"}
