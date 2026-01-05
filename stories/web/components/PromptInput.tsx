@@ -15,9 +15,10 @@ type PromptInputProps = {
   onSubmit: (prefs: ParsedPreferences) => void;
   disabled?: boolean;
   language?: "en" | "zh";
+  className?: string;
 };
 
-export default function PromptInput({ onSubmit, disabled, language = "en" }: PromptInputProps) {
+export default function PromptInput({ onSubmit, disabled, language = "en", className }: PromptInputProps) {
   const [value, setValue] = useState("");
 
   const detectLanguage = useCallback((text: string): "en" | "zh" => {
@@ -48,7 +49,7 @@ export default function PromptInput({ onSubmit, disabled, language = "en" }: Pro
   }, [value, parsePreferences, onSubmit]);
 
   return (
-    <div className="w-full max-w-xl mx-auto">
+    <div className={className ?? "w-full max-w-xl mx-auto"}>
       <div className={`flex items-center gap-2 rounded-2xl border border-black/5 dark:border-white/10 backdrop-blur px-3 py-2 shadow-sm ${
         disabled ? "bg-black/5 dark:bg-white/5 opacity-50 cursor-not-allowed" : "bg-white/70 dark:bg-white/10"
       }`}>

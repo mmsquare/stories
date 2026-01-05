@@ -1,0 +1,28 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Restaurant {
+  id            String   @id @default(uuid())
+  name          String
+  googleMapsUrl String
+  address       String
+  latitude      Float
+  longitude     Float
+  createdAt     DateTime @default(now())
+  votes         Vote[]
+}
+
+model Vote {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+  voterHash    String
+  isTrue       Boolean
+  createdAt    DateTime   @default(now())
+}

@@ -8,6 +8,6 @@ export function getOpenAI() {
   return new OpenAI({ apiKey });
 }
 
-export const defaultModel = process.env.OPENAI_MODEL || "gpt-4o-mini";
+export const defaultModel = process.env.OPENAI_MODEL || "gpt-4o";
 
 

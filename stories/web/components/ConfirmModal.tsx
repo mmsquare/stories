@@ -7,15 +7,13 @@ type ConfirmModalProps = {
   message: string;
   categories?: { category: string; items?: { title: string; yearOrEra?: string; place?: string; personOrProtagonist?: string; oneLineWhyRelevant?: string }[]; highlights?: string[] }[];
   defaultCategory?: string;
-  onConfirm: (selection?: { category: string; age: number; lengthMinutes: number; chosenItem?: { title: string; yearOrEra?: string; place?: string; personOrProtagonist?: string } }) => void;
+  onConfirm: (selection?: { category: string; chosenItem?: { title: string; yearOrEra?: string; place?: string; personOrProtagonist?: string } }) => void;
   onCancel: () => void;
   language: "en" | "zh";
 };
 
 export default function ConfirmModal({ open, message, categories = [], defaultCategory, onConfirm, onCancel, language }: ConfirmModalProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>(defaultCategory || categories[0]?.category || "");
-  const [age, setAge] = useState<number>(8);
-  const [lengthMinutes, setLengthMinutes] = useState<number>(3);
   const selectedItems = (categories.find((x) => x.category === selectedCategory)?.items) || [];
   const [selectedItemIdx, setSelectedItemIdx] = useState<number>(0);
   
@@ -81,22 +79,7 @@ export default function ConfirmModal({ open, message, categories = [], defaultCa
           </div>
         )}
 
-        <div className="mt-5 grid gap-4">
-          <div>
-            <div className="flex items-center justify-between text-xs mb-1">
-              <span>{language === "zh" ? "年龄" : "Age"}</span>
-              <span>{age}+ {language === "zh" ? "岁" : "years"}</span>
-            </div>
-            <input type="range" min={4} max={21} value={age} onChange={(e) => setAge(parseInt(e.target.value, 10))} className="w-full" />
-          </div>
-          <div>
-            <div className="flex items-center justify-between text-xs mb-1">
-              <span>{language === "zh" ? "时长" : "Length"}</span>
-              <span>{lengthMinutes} {language === "zh" ? "分钟" : "min"}</span>
-            </div>
-            <input type="range" min={2} max={10} value={lengthMinutes} onChange={(e) => setLengthMinutes(parseInt(e.target.value, 10))} className="w-full" />
-          </div>
-        </div>
+        {/* Sliders moved to SettingsModal */}
         <div className="flex justify-end gap-2">
           <button
             onClick={onCancel}
@@ -105,7 +88,7 @@ export default function ConfirmModal({ open, message, categories = [], defaultCa
             {language === "zh" ? "取消" : "Cancel"}
           </button>
           <button
-            onClick={() => onConfirm({ category: selectedCategory || categories[0]?.category || "", age, lengthMinutes, chosenItem: selectedItems[selectedItemIdx] })}
+            onClick={() => onConfirm({ category: selectedCategory || categories[0]?.category || "", chosenItem: selectedItems[selectedItemIdx] })}
             className="px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 shadow"
           >
             {language === "zh" ? "确认" : "Confirm"}

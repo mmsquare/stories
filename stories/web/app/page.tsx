@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import BreathingBubble from "@/components/BreathingBubble";
 import PromptInput, { ParsedPreferences } from "@/components/PromptInput";
-import ConfirmModal from "@/components/ConfirmModal";
-import type { Findings } from "@/types/story";
+import SettingsModal from "@/components/SettingsModal";
 import { useStories, createStoryId } from "@/store/useStories";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -12,10 +11,7 @@ import { X } from "lucide-react";
 
 export default function Home() {
   const [bubbleState, setBubbleState] = useState<"idle" | "active" | "listening">("idle");
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmMessage, setConfirmMessage] = useState("");
-  const [confirmFindings, setConfirmFindings] = useState<Findings | undefined>(undefined);
-  const [confirmDefaultCategory, setConfirmDefaultCategory] = useState<string | undefined>(undefined);
+  // Confirmation flow removed
   const [currentLanguage, setCurrentLanguage] = useState<"en" | "zh">("en");
   const [isBusy, setIsBusy] = useState(false);
   type Stage = "idle" | "search" | "plan" | "tts";
@@ -23,6 +19,10 @@ export default function Home() {
   const [stageTick, setStageTick] = useState(0);
   const [progress, setProgress] = useState(0); // 0..1
   const [progressTarget, setProgressTarget] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsCategories, setSettingsCategories] = useState<string[]>(["Real", "Historical", "Myth/Legend"]);
+  const [settingsAge, setSettingsAge] = useState<number>(21);
+  const [settingsLength, setSettingsLength] = useState<number>(5);
   const getStageCap = useCallback((s: Stage): number => {
     if (s === "tts") return 0.95; // don't fully fill during TTS
     if (s === "plan") return 0.7;
@@ -32,6 +32,14 @@ export default function Home() {
   const router = useRouter();
   const { setCurrent, updateCurrent, saved } = useStories();
   const ttsDisabled = process.env.NEXT_PUBLIC_TTS_DISABLED === "true";
+  const allCategories = useMemo<string[]>(() => [
+    "Real",
+    "Historical",
+    "Myth/Legend",
+    "Scientific",
+    "Romantic/Love",
+    "Heroic",
+  ], []);
 
   const handleSubmit = useCallback(async (prefs: ParsedPreferences) => {
     setCurrentLanguage(prefs.language);
@@ -39,130 +47,60 @@ export default function Home() {
     setIsBusy(true);
     setProgress(0.05);
     setProgressTarget((t) => Math.max(0.1, t));
-    console.log("Event: OpenAI model engaged to generate story structure confirmation");
+    console.log("Event: OpenAI model engaged to generate story directly");
     try {
       const id = createStoryId(prefs.subject, prefs.language);
       setCurrent({
         id,
         subject: prefs.subject,
         language: prefs.language,
-        audienceAge: prefs.audienceAge,
-        fictionLevel: prefs.fictionLevel,
         lengthMinutes: prefs.lengthMinutes,
         createdAt: Date.now(),
       });
-      const res = await fetch("/api/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(prefs),
-      });
-      const data = await res.json();
-      console.log("[Confirm] System Prompt:\n", data.debug_prompt?.system);
-      console.log("[Confirm] User Payload:\n", data.debug_prompt?.user);
-      // Store categorized findings
-      updateCurrent({ findings: data.findings });
-      setConfirmFindings(data.findings);
-      setConfirmDefaultCategory(data.findings?.categories?.[0]?.category);
-      setConfirmMessage(data.confirmation_message ?? "");
-      setConfirmOpen(true);
-    } catch (e) {
-      console.error(e);
-      toast.error(currentLanguage === "zh" ? "确认失败" : "Confirmation failed");
-      setBubbleState("idle");
-      setIsBusy(false);
-      setStage("idle");
-    }
-  }, []);
 
-  const onConfirm = useCallback(async (selection?: { category: string; age: number; lengthMinutes: number; chosenItem?: { title: string; yearOrEra?: string; place?: string; personOrProtagonist?: string } }) => {
-    setConfirmOpen(false);
-    console.log("Event: OpenAI model engaged to generate the actual story");
-    try {
-      // Stages are visual only now (search → plan) based on confirm
+      // Visual stages only
       setStage("search");
       setProgressTarget((t) => Math.max(t, 0.18));
-      setTimeout(() => setStage("plan"), 1000);
-      setTimeout(() => setProgressTarget((t) => Math.max(t, 0.55)), 1000);
+      setTimeout(() => setStage("plan"), 800);
+      setTimeout(() => setProgressTarget((t) => Math.max(t, 0.55)), 800);
 
-      // Story
-      const cur3 = useStories.getState().current!;
-      const chosenCategory = selection?.category || confirmDefaultCategory || confirmFindings?.categories?.[0]?.category || "";
-      const age = selection?.age ?? 8;
-      const lengthMinutes = selection?.lengthMinutes ?? 3;
-      // Persist selection so Story page can show tags
-      const newSubject = selection?.chosenItem?.title || cur3.subject;
-      updateCurrent({ subject: newSubject, category: chosenCategory, age, lengthMinutes, chosenItem: selection?.chosenItem });
+      const chosenCategory = settingsCategories[0] || "";
+      const age = settingsAge;
+      const lengthMinutes = settingsLength;
+      updateCurrent({ categories: settingsCategories, category: chosenCategory, age, lengthMinutes });
+
+      const requestBody = { subject: prefs.subject, language: prefs.language, categories: settingsCategories, age, lengthMinutes };
+      console.log("[OpenAI] Request payload:", requestBody);
       const resStory = await fetch("/api/story", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject: newSubject, language: currentLanguage, category: chosenCategory, age, lengthMinutes, chosenItem: selection?.chosenItem, findings: cur3.findings ?? { subject: cur3.subject, categories: [] } }),
+        body: JSON.stringify(requestBody),
       });
-      if (!resStory.ok) throw new Error("story");
+      console.log("[OpenAI] Response status:", resStory.status, resStory.statusText);
+      if (!resStory.ok) {
+        const errText = await resStory.text();
+        console.error("[OpenAI] Error response body:\n", errText);
+        throw new Error("story");
+      }
       const storyJson = await resStory.json();
-      if (storyJson?.error === "not_verified") {
-        // Offer make-up story
-        const yes = confirm(currentLanguage === "zh" ? "未能核实真实故事。要听一则改编/虚构的故事吗？" : "Couldn't verify a real story. Would you like a make-up story instead?");
-        if (yes) {
-          const resMake = await fetch("/api/story", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ subject: newSubject, language: currentLanguage, category: chosenCategory, age, lengthMinutes, chosenItem: selection?.chosenItem, findings: cur3.findings ?? { subject: cur3.subject, categories: [] }, mode: "makeup" }),
-          });
-          if (!resMake.ok) throw new Error("story");
-          const makeJson = await resMake.json();
-          updateCurrent({ text: makeJson.text, segments: makeJson.segments });
-        } else {
-          // reopen confirmation to pick another item
-          setConfirmOpen(true);
-          return;
-        }
-      } else {
-        const { text, segments } = storyJson;
-        if (!Array.isArray(segments)) {
-          console.warn("[Story] Unexpected segments shape; coercing to array");
-        }
-        updateCurrent({ text, segments });
+      // Frontend logging: exact combined prompt used by the model
+      if (storyJson?.debug_prompt?.prompt) {
+        console.log("[OpenAI] Model:", storyJson.debug_prompt.model || "(unknown)");
+        console.log("[OpenAI] Combined Prompt Sent:\n", storyJson.debug_prompt.prompt);
       }
-      console.log("[Story] System Prompt:\n", storyJson.debug_prompt?.system);
-      console.log("[Story] User Payload:\n", storyJson.debug_prompt?.user);
-      const { text, segments } = storyJson;
-      if (!Array.isArray(segments)) {
-        console.warn("[Story] Unexpected segments shape; coercing to array");
-      }
-      updateCurrent({ text, segments });
-
-      // TTS via external server
-      try {
-        setStage("tts");
-        setProgressTarget((t) => Math.max(t, 0.9));
-        const ttsBase = process.env.NEXT_PUBLIC_TTS_BASE || ""; // e.g. https://stories-tts.onrender.com
-        if (!ttsBase) {
-          console.error("[TTS] NEXT_PUBLIC_TTS_BASE is not set. Skipping TTS.");
-          toast.error(currentLanguage === "zh" ? "未配置配音服务器" : "TTS server not configured");
-          setProgressTarget(1.0);
-          // proceed to story page without audio
-          setBubbleState("idle");
-          setIsBusy(false);
-          setStage("idle");
-          setProgress(0);
-          setProgressTarget(0);
-          router.push("/story");
-          return;
-        }
-        const start = await fetch(`${ttsBase}/api/tts`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, language: currentLanguage }),
+      // Logging: number of stories and categories
+      const variants = Array.isArray(storyJson?.variants) ? storyJson.variants : [];
+      console.log(`[OpenAI] Stories returned: ${variants.length}`);
+      if (variants.length > 0) {
+        const cats = variants.map((v: any) => v?.category || "");
+        console.log("[OpenAI] Categories:", cats);
+        // Log each story content
+        variants.forEach((v: any, i: number) => {
+          console.log(`\n[OpenAI] Story #${i + 1} (category=${v?.category ?? ""}, reference=${v?.reference ?? ""})\n`);
+          console.log(v?.text ?? "");
         });
-        if (!start.ok) throw new Error(await start.text());
-        const blob = await start.blob();
-        const url = URL.createObjectURL(blob);
-        updateCurrent({ audioUrl: url });
-        setProgressTarget(1.0);
-      } catch (e) {
-        console.error("[TTS-bg]", e);
-        toast.error(currentLanguage === "zh" ? "配音失败" : "TTS failed");
       }
+      updateCurrent({ text: storyJson.text, segments: storyJson.segments, variants: storyJson.variants, currentVariantIndex: 0 });
 
       setBubbleState("idle");
       setIsBusy(false);
@@ -170,27 +108,18 @@ export default function Home() {
       setProgress(0);
       setProgressTarget(0);
       router.push("/story");
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      const step = e?.message;
-      const msg = step === "research" ? (currentLanguage === "zh" ? "搜集资料失败" : "Research failed")
-        : step === "structure" ? (currentLanguage === "zh" ? "生成大纲失败" : "Structure failed")
-        : step === "story" ? (currentLanguage === "zh" ? "生成故事失败" : "Story generation failed")
-        : (currentLanguage === "zh" ? "出错了" : "Something went wrong");
-      toast.error(msg);
+      toast.error(currentLanguage === "zh" ? "生成失败" : "Generation failed");
       setBubbleState("idle");
       setIsBusy(false);
       setStage("idle");
       setProgress(0);
       setProgressTarget(0);
     }
-  }, [currentLanguage, router, updateCurrent]);
+  }, [router, settingsCategories, settingsAge, settingsLength]);
 
-  const onCancel = useCallback(() => {
-    setConfirmOpen(false);
-    setBubbleState("idle");
-    setIsBusy(false);
-  }, []);
+  // Legacy confirm handler removed
 
   const stageText = useMemo(() => {
     const en = {
@@ -293,7 +222,37 @@ export default function Home() {
           progress={progress}
         />
         {isBusy && (<div className="text-sm text-black/60 dark:text-white/60 text-center min-h-[1.5rem]" />)}
-        <PromptInput onSubmit={handleSubmit} disabled={isBusy} language={currentLanguage} />
+        <div className="w-full max-w-xl mx-auto flex items-center gap-2">
+          <PromptInput onSubmit={handleSubmit} disabled={isBusy} language={currentLanguage} className="flex-1" />
+          <button
+            onClick={() => setSettingsOpen(true)}
+            aria-label={currentLanguage === "zh" ? "设置" : "Settings"}
+            className="p-2 rounded-xl border border-black/10 dark:border-white/10 bg-white/70 dark:bg-white/10 text-black/70 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/10 shrink-0"
+            disabled={isBusy}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09c0 .66.39 1.26 1 1.51.61.25 1.31.11 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06c-.45.51-.58 1.21-.33 1.82.25.61.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09c-.66 0-1.26.39-1.51 1Z"/></svg>
+          </button>
+        </div>
+        <div className="w-full max-w-xl mx-auto -mt-1">
+          <div className="text-[11px] tracking-wide uppercase text-black/50 dark:text-white/50 mb-1">
+            {currentLanguage === "zh" ? "故事类别" : "Story categories"}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {allCategories.map((c) => {
+              const selected = settingsCategories.includes(c);
+              return (
+                <button
+                  key={c}
+                  onClick={() => setSettingsCategories((prev) => prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c])}
+                  className={`px-3 py-1.5 rounded-xl text-sm border ${selected ? "bg-indigo-600 text-white border-indigo-600" : "bg-white/70 dark:bg-white/10 text-black/80 dark:text-white/80 border-black/15 dark:border-white/10"}`}
+                  disabled={isBusy}
+                >
+                  {c}
+                </button>
+              );
+            })}
+          </div>
+        </div>
        
         {saved.length > 0 && (
           <div className="mt-8 w-full max-w-xl">
@@ -320,14 +279,18 @@ export default function Home() {
         )}
       </main>
 
-      <ConfirmModal
-        open={confirmOpen}
-        message={confirmMessage}
-        categories={confirmFindings?.categories}
-        defaultCategory={confirmDefaultCategory}
-        onConfirm={onConfirm}
-        onCancel={onCancel}
+      {/* Confirmation removed */}
+      <SettingsModal
+        open={settingsOpen}
         language={currentLanguage}
+        initialAge={settingsAge}
+        initialLength={settingsLength}
+        onClose={() => setSettingsOpen(false)}
+        onSave={({ age, lengthMinutes }) => {
+          setSettingsAge(age);
+          setSettingsLength(lengthMinutes);
+          setSettingsOpen(false);
+        }}
       />
     </div>
   );
