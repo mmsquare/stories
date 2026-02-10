@@ -25,4 +25,7 @@ async function main() {
   process.once('SIGTERM', () => bot.stop('SIGTERM'));
 }
 
-main();
+main().catch((err) => {
+  console.error('Unhandled error in main:', err);
+  process.exit(1);
+});

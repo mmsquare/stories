@@ -32,7 +32,7 @@ export const scheduler = {
     console.log(`Scheduling job for Day: ${dayOfWeek}, Time: ${hour}:${minute} Asia/Shanghai`);
 
     scheduler.job = schedule.scheduleJob(rule, async () => {
-      const now = DateTime.now().setZone('Asia/Shanghai');
+      const now = DateTime.now().setZone('Asia/Shanghai').setLocale('zh-CN');
       const dateStr = now.toFormat('yyyy-MM-dd');
 
       if (store.isCancelled(dateStr)) {
@@ -40,8 +40,8 @@ export const scheduler = {
         return;
       }
 
-      const reminderText = await generateReminder(now.toFormat('cccc, LLLL dd'), now.toFormat('HH:mm'));
-      const message = `${reminderText}\n\n📝 [Meeting Notes](${config.MEETING_LINK})`;
+      const reminderText = await generateReminder(now.toFormat('M月d日 EEEE'), now.toFormat('HH:mm'));
+      const message = `${reminderText}\n\n📝 [会议记录模板](${config.MEETING_LINK})`;
 
       if (config.TARGET_GROUP_ID && scheduler.bot) {
         try {
