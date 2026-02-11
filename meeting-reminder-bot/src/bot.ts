@@ -53,7 +53,7 @@ export function setupBot() {
       }
 
       scheduler.updateSchedule(day, hour, minute);
-      ctx.reply(`计划已更新：每周 ${day}，${hour}:${minute} (北京时间)`);
+      ctx.reply(`会议时间已设置为：每周 ${day}，${hour}:${minute} (北京时间)。\n提醒将在会议前 24 小时发送。`);
     });
 
     bot.command('cancel_this_week', (ctx) => {
@@ -81,8 +81,12 @@ export function setupBot() {
     });
 
     bot.command('test_reminder', async (ctx) => {
-        const now = DateTime.now().setZone('Asia/Shanghai').setLocale('zh-CN');
-        const reminder = await generateReminder(now.toFormat('M月d日 EEEE'), now.toFormat('HH:mm'));
-        ctx.reply(`${reminder}\n\n📝 [会议记录模板](${config.MEETING_LINK})`, { parse_mode: 'Markdown' });
+        const meetingTime = scheduler.getNextMeetingTime();
+        if (!meetingTime) {
+          return ctx.reply('请先用 /set_schedule 设置会议时间后再试。');
+        }
+        const reminder = await generateReminder(meetingTime.toFormat('M月d日 EEEE'), meetingTime.toFormat('HH:mm'));
+        const sharerLine = `\n\n🔄 本周 HL/AI 案例分享：${scheduler.getCurrentSharerName()}`;
+        ctx.reply(`${reminder}${sharerLine}\n\n📝 [会议记录模板](${config.MEETING_LINK})`, { parse_mode: 'Markdown' });
     });
 }

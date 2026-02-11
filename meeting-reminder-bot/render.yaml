@@ -1,0 +1,22 @@
+# Render Blueprint: Background Worker
+# Set BOT_TOKEN, OPENAI_API_KEY, TARGET_GROUP_ID, MEETING_LINK in Render Dashboard → Service → Environment.
+# If this app lives in a subdirectory (monorepo), set rootDir to that path, e.g. rootDir: meeting-reminder-bot
+
+services:
+  - type: worker
+    name: meeting-reminder-bot
+    runtime: node
+    plan: starter
+
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    # rootDir: meeting-reminder-bot   # Uncomment if repo root is the parent of this app
+
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+
+    envVars:
+      - key: DB_PATH
+        value: /data/reminder.db

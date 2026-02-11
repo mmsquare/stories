@@ -1,6 +1,13 @@
+import { mkdirSync, existsSync } from 'fs';
+import { dirname } from 'path';
 import Database from 'better-sqlite3';
 
-const db = new Database('reminder.db');
+const dbPath = process.env.DB_PATH || 'reminder.db';
+const dir = dirname(dbPath);
+if (dir !== '.' && !existsSync(dir)) {
+  mkdirSync(dir, { recursive: true });
+}
+const db = new Database(dbPath);
 
 // Initialize DB
 db.exec(`

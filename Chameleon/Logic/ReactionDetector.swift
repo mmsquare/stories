@@ -1,6 +1,7 @@
 import Foundation
 import Vision
 import CoreImage
+import Combine
 
 enum Reaction: String {
     case none = "Normal"
@@ -188,4 +189,3 @@ class ReactionDetector: ObservableObject {
         return totalDisp < 0.01
     }
 }
-
