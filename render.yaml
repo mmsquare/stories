@@ -1,0 +1,21 @@
+# Render Blueprint — ATweeklyallhandsbot (monorepo root)
+# Render looks for render.yaml at repo root. This service runs from ATweeklyallhandsbot/.
+# Add env vars in Dashboard: BOT_TOKEN, TARGET_GROUP_ID, MEETING_LINK; optional: OPENAI_API_KEY.
+
+services:
+  - type: worker
+    name: atweeklyallhandsbot
+    runtime: node
+    rootDir: ATweeklyallhandsbot
+
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+
+    envVars:
+      - key: DB_PATH
+        value: /data/atweeklyallhands.db
