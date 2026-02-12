@@ -1,6 +1,7 @@
-# Render Blueprint: Background Worker
-# Set BOT_TOKEN, TARGET_GROUP_ID, MEETING_LINK (and optionally OPENAI_API_KEY) in Render Dashboard → Environment.
-# If deploying from a monorepo with this app in a subdirectory, set rootDir: ATweeklyallhandsbot in the Dashboard.
+# Render Blueprint — deploy as Background Worker
+# 1. In Render: New → Blueprint; connect this repo.
+# 2. Add env vars in Dashboard → Environment: BOT_TOKEN, TARGET_GROUP_ID, MEETING_LINK; optional: OPENAI_API_KEY.
+# 3. Deploy. The worker runs 24/7 and sends reminders on schedule (DB persists on disk).
 
 services:
   - type: worker
