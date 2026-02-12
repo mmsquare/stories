@@ -1,0 +1,20 @@
+# Render Blueprint: Background Worker
+# Set BOT_TOKEN, TARGET_GROUP_ID, MEETING_LINK (and optionally OPENAI_API_KEY) in Render Dashboard → Environment.
+# If deploying from a monorepo with this app in a subdirectory, set rootDir: ATweeklyallhandsbot in the Dashboard.
+
+services:
+  - type: worker
+    name: atweeklyallhandsbot
+    runtime: node
+
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+
+    envVars:
+      - key: DB_PATH
+        value: /data/atweeklyallhands.db

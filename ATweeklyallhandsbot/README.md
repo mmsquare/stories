@@ -48,3 +48,18 @@ For development: `npm run dev`
 ## Data
 
 - Schedule and one-off cancellations are stored in `atweeklyallhands.db` (SQLite). Override path with `DB_PATH` in `.env`.
+
+## Deploy on Render
+
+1. Push this repo to GitHub and connect it to [Render](https://render.com).
+2. Create a **Background Worker** (or use the **Blueprint** from `render.yaml`).
+3. Set **Environment** variables in the Render dashboard:
+   - `BOT_TOKEN` — from BotFather
+   - `TARGET_GROUP_ID` — group chat ID (negative number)
+   - `MEETING_LINK` — permanent URL to your meeting notes template
+   - `OPENAI_API_KEY` — (optional) for dynamic reminder text
+4. If using the Blueprint: `DB_PATH` is set to `/data/atweeklyallhands.db` and a 1 GB disk is mounted at `/data` so the SQLite DB persists.
+5. **Build command:** `npm install && npm run build`  
+   **Start command:** `npm start`
+
+Render will install dependencies, compile TypeScript, and run the bot. The worker stays running and uses node-schedule for the recurring reminder.

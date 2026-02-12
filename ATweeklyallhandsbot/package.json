@@ -11,6 +11,7 @@
   "keywords": ["telegram", "bot", "reminder", "all-hands"],
   "author": "",
   "license": "ISC",
+  "engines": { "node": ">=20" },
   "description": "Telegram bot for AT weekly all-hands reminders with recurring schedule and one-off cancel",
   "dependencies": {
     "better-sqlite3": "^12.6.2",
